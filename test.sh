@@ -3,32 +3,6 @@
 # A minimal, portable DDNS client for CloudFlare API v4 meant for use w/ cron
 # Requires: curl (w/ HTTPS support), grep, awk
 
-helptext=`cat << ENDHELP
-Usage: cf-ddns.sh [OPTION] -e=EMAIL -a=APIKEY -z=ZONENAME -r=RECORDNAME
-  Or:  cf-ddns.sh [OPTION] -e=EMAIL -a=APIKEY -y=ZONEID -q=RECORDID
-A minimal, portable DDNS client for CloudFlare
-
-Required
-  -e=, --email=		CloudFlare account email
-  -a=, --apikey=	CloudFlare account API key
-  -z=, --zonename=	Zone name in the form of subdomain.domain.tld
-    OR
-  -y=, --zoneid=	CloudFlare zone ID
-  -r=, --recordname=	Record name in the form of subdomain.domain.tld
-    OR
-  -q=, --recordid=	CloudFlare record ID
-
-Options
-  -f, --force		Force a DNS update, even if WAN IP hasn't changed
-  -t, --test		Test action without updating DNS record
-  -w=, --wan=		Manually specify WAN IP address, skip detection
-  --use-lan-ip          Use LAN IP instead of WAN, when updating
-  --get-wan-ip		Determine the WAN IP, print it and exit
-  --get-zone-id		Print zone ID corresponding to zone name and exit
-  --get-record-id	Print record ID corresponding to record name and exit
-  -h, --help		Print this message and exit
-ENDHELP`
-
 
 #Configuration - these options can be hard-coded or passed as parameters
 ###############
@@ -184,7 +158,7 @@ lookup_zone_id () {
         exit 1
     fi
 
-    zones=`${curl_command} -s -X GET "${cf_api_url}/zones?name=${zname}"  -H "Authorization: Bearer ${cf_api_key}" -H "Content-Type: application/json"`
+    zones=`${curl_command} -s -X GET "${cf_api_url}/zones?name=${zname}" -H "X-Auth-Email: ${cf_email}" -H "X-Auth-Key: ${cf_api_key}" -H "Content-Type: application/json"`
 
     if [ ! "${zones}" ]; then
         echo "Request to API failed during zone lookup."
@@ -238,7 +212,7 @@ get_record_id () {
         set_zone_id $zone_name
     fi
 
-    records=`${curl_command} -s -X GET "${cf_api_url}/zones/${zone_id}/dns_records?name=${record_name}&type=A"  -H "Authorization: Bearer ${cf_api_key}" -H "Content-Type: application/json"`
+    records=`${curl_command} -s -X GET "${cf_api_url}/zones/${zone_id}/dns_records?name=${record_name}&type=A" -H "X-Auth-Email: ${cf_email}" -H "X-Auth-Key: ${cf_api_key}" -H "Content-Type: application/json"`
 
     if [ ! "${records}" ]; then
         echo "Request to API failed during record lookup."
@@ -266,7 +240,7 @@ get_record_id () {
 
 do_record_update () {
     # Perform record update
-    api_dns_update=`${curl_command} -s -X PUT "${cf_api_url}/zones/${zone_id}/dns_records/${record_id}"  -H "Authorization: Bearer ${cf_api_key}" -H "Content-Type: application/json" --data "{\"id\":\"${zone_id}\",\"type\":\"A\",\"name\":\"${record_name}\",\"content\":\"${WAN_addr}\"}"`
+    api_dns_update=`${curl_command} -s -X PUT "${cf_api_url}/zones/${zone_id}/dns_records/${record_id}" -H "X-Auth-Email: ${cf_email}" -H "X-Auth-Key: ${cf_api_key}" -H "Content-Type: application/json" --data "{\"id\":\"${zone_id}\",\"type\":\"A\",\"name\":\"${record_name}\",\"content\":\"${WAN_addr}\"}"`
 
     if [ ! "${api_dns_update}" ]; then
         echo "There was a problem communicating with the API server. Check your connectivity and parameters."
@@ -296,6 +270,10 @@ cf_api_url=${cf_api_url%%+(/)}
 
 # Show help and exit if no option was passed in the command line
 
+echo "WAN IP: `lookup_WAN_addr`"
+
+
+exit 0
 if [ -z "${1}" ]; then
     echo "${helptext}"
     exit 0
